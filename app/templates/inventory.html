@@ -59,23 +59,24 @@ function render(items){
   tb.innerHTML=items.map(i=>{
     const p=i.product||{};
     const low=i.quantity<=i.reorder_level;
+    const safeName=(p.name||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
     return `<tr>
       <td>${p.name||''}</td>
       <td>${p.brand?p.brand.name:''}</td>
       <td>${p.variant?p.variant.name:''}</td>
-      <td>${p.size?p.size.size_inches+'"':''}</td>
+      <td>${p.size?p.size.size_inches+'&quot;':''}</td>
       <td>${i.quantity}</td>
       <td>${i.reorder_level}</td>
       <td>${low?'<span class="badge bg-danger">Low</span>':'<span class="badge bg-success">OK</span>'}</td>
-      <td><button class="btn btn-sm btn-outline-primary" onclick="editItem('${i.product_id}','${(p.name||'').replace(/'/g,"\\'")}',${i.quantity},${i.reorder_level})"><i class="bi bi-pencil"></i></button></td>
+      <td><button class="btn btn-sm btn-outline-primary" data-pid="${i.product_id}" data-pname="${safeName}" data-qty="${i.quantity}" data-reorder="${i.reorder_level}" onclick="editItem(this)"><i class="bi bi-pencil"></i></button></td>
     </tr>`;
   }).join('');
 }
-function editItem(pid,name,qty,reorder){
-  document.getElementById('editProductId').value=pid;
-  document.getElementById('editProductName').value=name;
-  document.getElementById('editQty').value=qty;
-  document.getElementById('editReorder').value=reorder;
+function editItem(btn){
+  document.getElementById('editProductId').value=btn.dataset.pid;
+  document.getElementById('editProductName').value=btn.dataset.pname;
+  document.getElementById('editQty').value=btn.dataset.qty;
+  document.getElementById('editReorder').value=btn.dataset.reorder;
   new bootstrap.Modal(document.getElementById('editModal')).show();
 }
 function saveInventory(){
