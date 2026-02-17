@@ -50,7 +50,7 @@ def create_app(config_name=None):
 
 def _seed_defaults():
     """Create admin user and default data if they don't exist yet."""
-    from app.models import User, Brand, Variant, Size
+    from app.models import User, Brand, Variant, Size, Product, Inventory
 
     # Admin user
     if not User.query.filter_by(username='admin').first():
@@ -75,4 +75,24 @@ def _seed_defaults():
     # Default sizes
     if not Size.query.first():
         db.session.add_all([Size(size_inches=float(i)) for i in range(4, 13)])
+        db.session.commit()
+
+    # Auto-create products (Brand × Variant × Size) with inventory if none exist
+    if not Product.query.first():
+        brands = Brand.query.all()
+        variants = Variant.query.all()
+        sizes = Size.query.all()
+        for brand in brands:
+            for variant in variants:
+                for size in sizes:
+                    name = f"{brand.name} {variant.name} {int(size.size_inches)}\" Pipe"
+                    product = Product(
+                        name=name,
+                        brand_id=brand.id,
+                        variant_id=variant.id,
+                        size_id=size.id,
+                    )
+                    db.session.add(product)
+                    db.session.flush()
+                    db.session.add(Inventory(product_id=product.id, quantity=0, reorder_level=10))
         db.session.commit()
