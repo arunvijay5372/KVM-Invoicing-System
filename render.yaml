@@ -1,0 +1,26 @@
+databases:
+  - name: kvm-db
+    plan: free
+    databaseName: kvm_invoicing
+    user: kvm_user
+
+services:
+  - type: web
+    name: kvm-invoicing
+    env: python
+    region: singapore
+    plan: free
+    runtime: python-3.11
+    startCommand: gunicorn wsgi:app
+    buildCommand: pip install -r requirements.txt && python init_db.py
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kvm-db
+          property: connectionURI
+      - key: PYTHON_VERSION
+        value: 3.11.7

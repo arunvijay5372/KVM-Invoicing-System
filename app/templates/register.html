@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register - KVM Enterprises</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1a2e,#16213e);font-family:'Segoe UI',system-ui,sans-serif}
+    .reg-card{width:100%;max-width:450px;border-radius:1rem;box-shadow:0 8px 32px rgba(0,0,0,.25)}
+    .reg-card .card-header{background:transparent;border:none;padding:2rem 2rem 0}
+    .reg-card .card-body{padding:1.5rem 2rem 2rem}
+    .btn-reg{background:linear-gradient(135deg,#667eea,#764ba2);border:none;transition:.3s}
+    .btn-reg:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(102,126,234,.4)}
+  </style>
+</head>
+<body>
+<div class="card reg-card">
+  <div class="card-header text-center">
+    <h4 class="mb-1">Create Account</h4>
+    <small class="text-muted">KVM Enterprises</small>
+  </div>
+  <div class="card-body">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+          <div class="alert alert-{{ cat }} py-2 small">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="/auth/register">
+      <div class="mb-3">
+        <label class="form-label">Username</label>
+        <input type="text" name="username" class="form-control" required autofocus>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Password</label>
+        <input type="password" name="password" class="form-control" id="pw1" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Confirm Password</label>
+        <input type="password" name="confirm_password" class="form-control" id="pw2" required>
+        <div class="invalid-feedback">Passwords do not match</div>
+      </div>
+      <button type="submit" class="btn btn-reg text-white w-100 py-2">Register</button>
+    </form>
+    <div class="text-center mt-3">
+      <a href="/auth/login" class="small text-decoration-none">Already have an account? Log in</a>
+    </div>
+  </div>
+</div>
+<script>
+  const pw1=document.getElementById('pw1'),pw2=document.getElementById('pw2');
+  pw2.addEventListener('input',()=>{
+    if(pw2.value&&pw2.value!==pw1.value){pw2.classList.add('is-invalid');}
+    else{pw2.classList.remove('is-invalid');}
+  });
+</script>
+</body>
+</html>

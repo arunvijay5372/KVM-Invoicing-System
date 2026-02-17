@@ -1,0 +1,7 @@
+product_id,quantity
+# Add your product IDs and quantities below
+# Format: UUID,number
+# Example:
+# 550e8400-e29b-41d4-a716-446655440000,100
+# 550e8400-e29b-41d4-a716-446655440001,75
+# 550e8400-e29b-41d4-a716-446655440002,50

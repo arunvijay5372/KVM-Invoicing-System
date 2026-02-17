@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Brands - KVM Enterprises{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3><i class="bi bi-tags"></i> Brands</h3>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#brandModal" onclick="resetForm()"><i class="bi bi-plus-circle"></i> Add Brand</button>
+</div>
+
+<div class="card p-3">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover">
+      <thead><tr><th>Name</th><th>Code</th><th>Description</th><th>Products</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody id="brandBody"><tr><td colspan="6" class="text-center text-muted">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Brand modal -->
+<div class="modal fade" id="brandModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title" id="brandModalTitle">Add Brand</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <input type="hidden" id="brandId">
+    <div class="mb-3"><label class="form-label">Brand Name *</label><input type="text" class="form-control" id="brandName"></div>
+    <div class="mb-3"><label class="form-label">Code *</label><input type="text" class="form-control" id="brandCode" maxlength="5"></div>
+    <div class="mb-3"><label class="form-label">Description</label><input type="text" class="form-control" id="brandDesc"></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-primary" onclick="saveBrand()">Save</button></div>
+</div></div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function load(){
+  fetch('/api/brands').then(r=>r.json()).then(data=>{
+    const tb=document.getElementById('brandBody');
+    if(!data.length){tb.innerHTML='<tr><td colspan="6" class="text-center text-muted">No brands yet</td></tr>';return;}
+    tb.innerHTML=data.map(b=>`<tr>
+      <td>${b.name}</td><td><code>${b.code}</code></td><td>${b.description||''}</td>
+      <td>-</td>
+      <td><span class="badge bg-${b.is_active?'success':'secondary'}">${b.is_active?'Active':'Inactive'}</span></td>
+      <td>
+        <button class="btn btn-sm btn-outline-primary" onclick="editBrand('${b.id}','${b.name.replace(/'/g,"\\'")}','${b.code}','${(b.description||'').replace(/'/g,"\\'")}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteBrand('${b.id}')"><i class="bi bi-trash"></i></button>
+      </td>
+    </tr>`).join('');
+  });
+}
+function resetForm(){
+  document.getElementById('brandId').value='';
+  document.getElementById('brandName').value='';
+  document.getElementById('brandCode').value='';
+  document.getElementById('brandDesc').value='';
+  document.getElementById('brandModalTitle').textContent='Add Brand';
+}
+function editBrand(id,name,code,desc){
+  document.getElementById('brandId').value=id;
+  document.getElementById('brandName').value=name;
+  document.getElementById('brandCode').value=code;
+  document.getElementById('brandDesc').value=desc;
+  document.getElementById('brandModalTitle').textContent='Edit Brand';
+  new bootstrap.Modal(document.getElementById('brandModal')).show();
+}
+function saveBrand(){
+  const id=document.getElementById('brandId').value;
+  const data={name:document.getElementById('brandName').value.trim(),code:document.getElementById('brandCode').value.trim().toUpperCase(),
+    description:document.getElementById('brandDesc').value.trim()};
+  if(!data.name||!data.code){alert('Name and code are required');return;}
+  const url=id?'/api/brands/'+id:'/api/brands';
+  const method=id?'PUT':'POST';
+  fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+    .then(r=>{if(!r.ok) return r.json().then(e=>{throw new Error(e.error)});return r.json();})
+    .then(()=>{bootstrap.Modal.getInstance(document.getElementById('brandModal')).hide();load();})
+    .catch(e=>alert('Error: '+e.message));
+}
+function deleteBrand(id){
+  if(!confirm('Delete this brand and all its products?')) return;
+  fetch('/api/brands/'+id,{method:'DELETE'}).then(r=>{if(r.ok)load();else alert('Error deleting brand');});
+}
+load();
+</script>
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}New Invoice - KVM Enterprises{% endblock %}
+
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-plus-circle"></i> Create New Invoice</h3>
+
+<div class="card p-4">
+  <!-- Customer selection -->
+  <div class="row mb-3">
+    <div class="col-md-6">
+      <label class="form-label">Customer <span class="text-danger">*</span></label>
+      <select class="form-select" id="customerSelect"><option value="">-- Select Customer --</option></select>
+      <div class="mt-1"><a href="#" data-bs-toggle="modal" data-bs-target="#newCustomerModal" class="small">+ Add New Customer</a></div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Notes</label>
+      <textarea class="form-control" id="invoiceNotes" rows="2"></textarea>
+    </div>
+  </div>
+
+  <!-- Line items -->
+  <h5 class="mt-4 mb-3">Invoice Items</h5>
+  <div class="table-responsive">
+    <table class="table table-sm" id="itemsTable">
+      <thead><tr><th>Product</th><th>Qty</th><th>Unit Price (₹)</th><th>Disc %</th><th>Taxable</th><th>CGST</th><th>SGST</th><th>Total</th><th></th></tr></thead>
+      <tbody id="itemsBody"></tbody>
+      <tfoot>
+        <tr><td colspan="9"><button class="btn btn-sm btn-outline-primary" onclick="addRow()"><i class="bi bi-plus"></i> Add Item</button></td></tr>
+        <tr class="table-light"><td colspan="4" class="text-end"><strong>Subtotal:</strong></td><td id="fSubtotal">0.00</td><td id="fCGST">0.00</td><td id="fSGST">0.00</td><td id="fGrand"><strong>0.00</strong></td><td></td></tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <div class="text-end mt-3">
+    <button class="btn btn-success btn-lg" onclick="generateInvoice()"><i class="bi bi-check-circle"></i> Generate Invoice</button>
+  </div>
+</div>
+
+<!-- New customer modal -->
+<div class="modal fade" id="newCustomerModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Add New Customer</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <div class="mb-2"><label class="form-label">Name *</label><input type="text" class="form-control" id="ncName"></div>
+    <div class="mb-2"><label class="form-label">GSTIN</label><input type="text" class="form-control" id="ncGstin"></div>
+    <div class="mb-2"><label class="form-label">Phone</label><input type="text" class="form-control" id="ncPhone"></div>
+    <div class="mb-2"><label class="form-label">Email</label><input type="email" class="form-control" id="ncEmail"></div>
+    <div class="mb-2"><label class="form-label">Address</label><input type="text" class="form-control" id="ncAddress"></div>
+    <div class="row">
+      <div class="col mb-2"><label class="form-label">City</label><input type="text" class="form-control" id="ncCity"></div>
+      <div class="col mb-2"><label class="form-label">State</label><input type="text" class="form-control" id="ncState"></div>
+      <div class="col mb-2"><label class="form-label">Pincode</label><input type="text" class="form-control" id="ncPincode"></div>
+    </div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-primary" onclick="saveNewCustomer()">Save Customer</button></div>
+</div></div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let products=[];
+
+// Load customers & products
+function loadCustomers(){
+  fetch('/api/customers').then(r=>r.json()).then(data=>{
+    const sel=document.getElementById('customerSelect');
+    sel.innerHTML='<option value="">-- Select Customer --</option>';
+    data.forEach(c=>{sel.innerHTML+=`<option value="${c.id}">${c.name} ${c.gstin?'('+c.gstin+')':''}</option>`;});
+  });
+}
+function loadProducts(){
+  fetch('/api/products').then(r=>r.json()).then(data=>{products=data;addRow();});
+}
+
+function productOptions(){
+  return '<option value="">-- Select --</option>'+products.map(p=>`<option value="${p.id}" data-price="${p.price}">${p.name}</option>`).join('');
+}
+
+let rowCount=0;
+function addRow(){
+  rowCount++;
+  const tr=document.createElement('tr');
+  tr.id='row'+rowCount;
+  tr.innerHTML=`
+    <td><select class="form-select form-select-sm" onchange="onProductChange(this)">${productOptions()}</select></td>
+    <td><input type="number" class="form-control form-control-sm" value="1" min="1" onchange="calcRow(this)"></td>
+    <td><input type="number" class="form-control form-control-sm" value="0" min="0" step="0.01" onchange="calcRow(this)"></td>
+    <td><input type="number" class="form-control form-control-sm" value="0" min="0" max="100" step="0.1" onchange="calcRow(this)"></td>
+    <td class="taxable">0.00</td><td class="cgst">0.00</td><td class="sgst">0.00</td><td class="total"><strong>0.00</strong></td>
+    <td><button class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove();calcTotals()"><i class="bi bi-trash"></i></button></td>`;
+  document.getElementById('itemsBody').appendChild(tr);
+}
+
+function onProductChange(sel){
+  const opt=sel.selectedOptions[0];
+  const tr=sel.closest('tr');
+  const price=parseFloat(opt.dataset.price||0);
+  tr.querySelectorAll('input')[1].value=price.toFixed(2);
+  calcRow(sel);
+}
+
+function calcRow(el){
+  const tr=el.closest('tr');
+  const inputs=tr.querySelectorAll('input');
+  const qty=parseFloat(inputs[0].value)||0;
+  const price=parseFloat(inputs[1].value)||0;
+  const disc=parseFloat(inputs[2].value)||0;
+  const sub=qty*price;
+  const taxable=sub-sub*disc/100;
+  const cgst=taxable*9/100;
+  const sgst=taxable*9/100;
+  tr.querySelector('.taxable').textContent=taxable.toFixed(2);
+  tr.querySelector('.cgst').textContent=cgst.toFixed(2);
+  tr.querySelector('.sgst').textContent=sgst.toFixed(2);
+  tr.querySelector('.total').innerHTML='<strong>'+(taxable+cgst+sgst).toFixed(2)+'</strong>';
+  calcTotals();
+}
+
+function calcTotals(){
+  let sub=0,cg=0,sg=0;
+  document.querySelectorAll('#itemsBody tr').forEach(tr=>{
+    sub+=parseFloat(tr.querySelector('.taxable').textContent)||0;
+    cg+=parseFloat(tr.querySelector('.cgst').textContent)||0;
+    sg+=parseFloat(tr.querySelector('.sgst').textContent)||0;
+  });
+  document.getElementById('fSubtotal').textContent=sub.toFixed(2);
+  document.getElementById('fCGST').textContent=cg.toFixed(2);
+  document.getElementById('fSGST').textContent=sg.toFixed(2);
+  document.getElementById('fGrand').innerHTML='<strong>'+(sub+cg+sg).toFixed(2)+'</strong>';
+}
+
+function saveNewCustomer(){
+  const name=document.getElementById('ncName').value.trim();
+  if(!name){alert('Customer name is required');return;}
+  const customer={name,gstin:document.getElementById('ncGstin').value.trim(),phone:document.getElementById('ncPhone').value.trim(),
+    email:document.getElementById('ncEmail').value.trim(),address:document.getElementById('ncAddress').value.trim(),
+    city:document.getElementById('ncCity').value.trim(),state:document.getElementById('ncState').value.trim(),
+    pincode:document.getElementById('ncPincode').value.trim()};
+  fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(customer)})
+    .then(r=>{if(!r.ok) return r.json().then(e=>{throw new Error(e.error||'Failed')});return r.json();})
+    .then(c=>{bootstrap.Modal.getInstance(document.getElementById('newCustomerModal')).hide();loadCustomers();
+      setTimeout(()=>{document.getElementById('customerSelect').value=c.id;},300);})
+    .catch(e=>{alert('Error: '+e.message);});
+}
+
+function generateInvoice(){
+  const cid=document.getElementById('customerSelect').value;
+  if(!cid){alert('Please select a customer');return;}
+  const rows=document.querySelectorAll('#itemsBody tr');
+  if(!rows.length){alert('Add at least one item');return;}
+  const items=[];
+  let valid=true;
+  rows.forEach(tr=>{
+    const sel=tr.querySelector('select');
+    const inputs=tr.querySelectorAll('input');
+    if(!sel.value){valid=false;return;}
+    items.push({product_id:sel.value,quantity:parseInt(inputs[0].value),unit_price:parseFloat(inputs[1].value),
+      discount_percent:parseFloat(inputs[2].value),hsn_code:'3917'});
+  });
+  if(!valid){alert('Select a product for every row');return;}
+  fetch('/api/invoices',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({customer_id:cid,items,notes:document.getElementById('invoiceNotes').value})})
+    .then(r=>{if(!r.ok) return r.json().then(e=>{throw new Error(e.error||'Failed')});return r.json();})
+    .then(inv=>{window.location.href='/invoices/'+inv.id;})
+    .catch(e=>{alert('Error: '+e.message);});
+}
+
+loadCustomers();
+loadProducts();
+</script>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Invoices - KVM Enterprises{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3><i class="bi bi-receipt"></i> Invoices</h3>
+  <a href="/invoices/new" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Create Invoice</a>
+</div>
+
+<div class="card p-3">
+  <div class="mb-3">
+    <input type="text" class="form-control" id="searchBox" placeholder="Search invoices…">
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover">
+      <thead><tr><th>Invoice #</th><th>Customer</th><th>Date</th><th>Subtotal</th><th>CGST</th><th>SGST</th><th>Grand Total</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody id="invBody"><tr><td colspan="9" class="text-center text-muted">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allInvoices=[];
+function load(){
+  fetch('/api/invoices').then(r=>r.json()).then(data=>{
+    allInvoices=data;render(data);
+  });
+}
+function render(items){
+  const tb=document.getElementById('invBody');
+  if(!items.length){tb.innerHTML='<tr><td colspan="9" class="text-center text-muted">No invoices</td></tr>';return;}
+  tb.innerHTML=items.map(i=>`<tr>
+    <td><a href="/invoices/${i.id}">${i.invoice_number}</a></td>
+    <td>${i.customer?i.customer.name:''}</td>
+    <td>${i.invoice_date?new Date(i.invoice_date).toLocaleDateString('en-IN'):''}</td>
+    <td>₹${i.subtotal.toLocaleString('en-IN')}</td>
+    <td>₹${i.cgst_total.toLocaleString('en-IN')}</td>
+    <td>₹${i.sgst_total.toLocaleString('en-IN')}</td>
+    <td><strong>₹${i.grand_total.toLocaleString('en-IN')}</strong></td>
+    <td><span class="badge bg-${i.status==='paid'?'success':i.status==='sent'?'info':'secondary'}">${i.status}</span></td>
+    <td>
+      <a href="/invoices/${i.id}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
+      <a href="/api/invoices/${i.id}/pdf" class="btn btn-sm btn-outline-success"><i class="bi bi-file-pdf"></i></a>
+    </td>
+  </tr>`).join('');
+}
+document.getElementById('searchBox').addEventListener('input',e=>{
+  const q=e.target.value.toLowerCase();
+  render(allInvoices.filter(i=>(i.invoice_number+' '+(i.customer?i.customer.name:'')).toLowerCase().includes(q)));
+});
+load();
+</script>
+{% endblock %}

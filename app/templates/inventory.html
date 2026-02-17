@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Inventory - KVM Enterprises{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3><i class="bi bi-box"></i> Inventory</h3>
+  <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#uploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+</div>
+
+<div class="card p-3">
+  <div class="mb-3">
+    <input type="text" class="form-control" id="searchBox" placeholder="Search products…">
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover">
+      <thead>
+        <tr><th>Product</th><th>Brand</th><th>Variant</th><th>Size</th><th>Qty</th><th>Reorder</th><th>Status</th><th>Action</th></tr>
+      </thead>
+      <tbody id="invBody"><tr><td colspan="8" class="text-center text-muted">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Upload modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Bulk CSV Upload</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <p class="text-muted small">CSV format: <code>product_id,quantity</code></p>
+    <input type="file" class="form-control" id="csvFile" accept=".csv">
+  </div>
+  <div class="modal-footer"><button class="btn btn-primary" onclick="uploadCSV()">Upload</button></div>
+</div></div></div>
+
+<!-- Edit modal -->
+<div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title">Edit Inventory</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <input type="hidden" id="editProductId">
+    <div class="mb-3"><label class="form-label">Product</label><input type="text" class="form-control" id="editProductName" readonly></div>
+    <div class="mb-3"><label class="form-label">Quantity</label><input type="number" class="form-control" id="editQty" min="0"></div>
+    <div class="mb-3"><label class="form-label">Reorder Level</label><input type="number" class="form-control" id="editReorder" min="0"></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-primary" onclick="saveInventory()">Save</button></div>
+</div></div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allItems=[];
+function load(){
+  fetch('/api/inventory').then(r=>r.json()).then(data=>{
+    allItems=data;
+    render(data);
+  });
+}
+function render(items){
+  const tb=document.getElementById('invBody');
+  if(!items.length){tb.innerHTML='<tr><td colspan="8" class="text-center text-muted">No inventory</td></tr>';return;}
+  tb.innerHTML=items.map(i=>{
+    const p=i.product||{};
+    const low=i.quantity<=i.reorder_level;
+    return `<tr>
+      <td>${p.name||''}</td>
+      <td>${p.brand?p.brand.name:''}</td>
+      <td>${p.variant?p.variant.name:''}</td>
+      <td>${p.size?p.size.size_inches+'"':''}</td>
+      <td>${i.quantity}</td>
+      <td>${i.reorder_level}</td>
+      <td>${low?'<span class="badge bg-danger">Low</span>':'<span class="badge bg-success">OK</span>'}</td>
+      <td><button class="btn btn-sm btn-outline-primary" onclick="editItem('${i.product_id}','${(p.name||'').replace(/'/g,"\\'")}',${i.quantity},${i.reorder_level})"><i class="bi bi-pencil"></i></button></td>
+    </tr>`;
+  }).join('');
+}
+function editItem(pid,name,qty,reorder){
+  document.getElementById('editProductId').value=pid;
+  document.getElementById('editProductName').value=name;
+  document.getElementById('editQty').value=qty;
+  document.getElementById('editReorder').value=reorder;
+  new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+function saveInventory(){
+  const pid=document.getElementById('editProductId').value;
+  fetch('/api/inventory/'+pid,{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({quantity:parseInt(document.getElementById('editQty').value),reorder_level:parseInt(document.getElementById('editReorder').value)})
+  }).then(r=>{if(r.ok){bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();load();}else{alert('Error saving');}});
+}
+function uploadCSV(){
+  const f=document.getElementById('csvFile').files[0];
+  if(!f){alert('Select a CSV file');return;}
+  const fd=new FormData();fd.append('file',f);
+  fetch('/api/inventory/upload',{method:'POST',body:fd})
+    .then(r=>r.json()).then(d=>{alert(d.message||d.error);bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();load();});
+}
+document.getElementById('searchBox').addEventListener('input',e=>{
+  const q=e.target.value.toLowerCase();
+  render(allItems.filter(i=>(i.product&&i.product.name||'').toLowerCase().includes(q)));
+});
+load();
+</script>
+{% endblock %}

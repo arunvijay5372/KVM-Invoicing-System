@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - KVM Enterprises{% endblock %}
+
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h3>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4" id="statCards">
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div class="text-primary fs-2"><i class="bi bi-box-seam"></i></div>
+      <h5 class="mb-0" id="totalProducts">-</h5>
+      <small class="text-muted">Total Products</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div class="text-success fs-2"><i class="bi bi-tags"></i></div>
+      <h5 class="mb-0" id="activeBrands">-</h5>
+      <small class="text-muted">Active Brands</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div class="text-info fs-2"><i class="bi bi-currency-rupee"></i></div>
+      <h5 class="mb-0" id="inventoryValue">-</h5>
+      <small class="text-muted">Inventory Value</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center p-3">
+      <div class="text-warning fs-2"><i class="bi bi-exclamation-triangle"></i></div>
+      <h5 class="mb-0" id="lowStock">-</h5>
+      <small class="text-muted">Low Stock Items</small>
+    </div>
+  </div>
+</div>
+
+<!-- Quick actions -->
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card p-3">
+      <h5>Quick Actions</h5>
+      <div class="d-flex flex-wrap gap-2 mt-2">
+        <a href="/invoices/new" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Create Invoice</a>
+        <a href="/inventory" class="btn btn-outline-secondary"><i class="bi bi-box"></i> Update Inventory</a>
+        <a href="/customers" class="btn btn-outline-secondary"><i class="bi bi-people"></i> Add Customer</a>
+        <a href="/brands" class="btn btn-outline-secondary"><i class="bi bi-tags"></i> Add Brand</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card p-3">
+      <h5>Today's Invoices: <span class="badge bg-primary" id="todayInvoices">0</span></h5>
+    </div>
+  </div>
+</div>
+
+<!-- Recent invoices -->
+<div class="card p-3">
+  <h5>Recent Invoices</h5>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover">
+      <thead><tr><th>Invoice #</th><th>Customer</th><th>Date</th><th>Total</th><th>Status</th></tr></thead>
+      <tbody id="recentInvoices"><tr><td colspan="5" class="text-center text-muted">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+fetch('/api/dashboard')
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById('totalProducts').textContent=d.total_products;
+    document.getElementById('activeBrands').textContent=d.active_brands;
+    document.getElementById('inventoryValue').textContent='₹ '+d.total_inventory_value.toLocaleString('en-IN');
+    document.getElementById('lowStock').textContent=d.low_stock_count;
+    document.getElementById('todayInvoices').textContent=d.today_invoices;
+
+    const tb=document.getElementById('recentInvoices');
+    if(!d.recent_invoices.length){tb.innerHTML='<tr><td colspan="5" class="text-center text-muted">No invoices yet</td></tr>';return;}
+    tb.innerHTML=d.recent_invoices.map(i=>`<tr>
+      <td><a href="/invoices/${i.id}">${i.invoice_number}</a></td>
+      <td>${i.customer?i.customer.name:''}</td>
+      <td>${i.invoice_date?new Date(i.invoice_date).toLocaleDateString('en-IN'):''}</td>
+      <td>₹ ${i.grand_total.toLocaleString('en-IN')}</td>
+      <td><span class="badge bg-${i.status==='paid'?'success':i.status==='sent'?'info':'secondary'}">${i.status}</span></td>
+    </tr>`).join('');
+  });
+</script>
+{% endblock %}
