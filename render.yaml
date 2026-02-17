@@ -6,7 +6,7 @@ databases:
 
 services:
   - type: web
-    name: KVM-Enterprises
+    name: KVMEnterprises
     env: python
     region: singapore
     plan: free
