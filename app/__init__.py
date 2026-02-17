@@ -39,9 +39,40 @@ def create_app(config_name=None):
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(auth_bp, url_prefix='/auth')
 
-    # ---------- Create tables on first request ----------
+    # ---------- Create tables & seed admin user ----------
     with app.app_context():
         from app import models  # noqa: F401
         db.create_all()
+        _seed_defaults()
 
     return app
+
+
+def _seed_defaults():
+    """Create admin user and default data if they don't exist yet."""
+    from app.models import User, Brand, Variant, Size
+
+    # Admin user
+    if not User.query.filter_by(username='admin').first():
+        admin = User(username='admin', email='admin@kvmenterprises.com')
+        admin.set_password('admin123')
+        db.session.add(admin)
+        db.session.commit()
+
+    # Default brands
+    if not Brand.query.first():
+        for name, code in [('Finolex', 'FIN'), ('Star', 'STR'),
+                           ('Trubore', 'TRU'), ('K-Star', 'KST')]:
+            db.session.add(Brand(name=name, code=code, description=f'{name} Pipes'))
+        db.session.commit()
+
+    # Default variants
+    if not Variant.query.first():
+        db.session.add_all([Variant(name='4kg', weight_kg=4.0),
+                            Variant(name='6kg', weight_kg=6.0)])
+        db.session.commit()
+
+    # Default sizes
+    if not Size.query.first():
+        db.session.add_all([Size(size_inches=float(i)) for i in range(4, 13)])
+        db.session.commit()
