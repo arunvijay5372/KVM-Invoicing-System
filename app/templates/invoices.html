@@ -39,12 +39,19 @@ function render(items){
     <td>₹${i.cgst_total.toLocaleString('en-IN')}</td>
     <td>₹${i.sgst_total.toLocaleString('en-IN')}</td>
     <td><strong>₹${i.grand_total.toLocaleString('en-IN')}</strong></td>
-    <td><span class="badge bg-${i.status==='paid'?'success':i.status==='sent'?'info':'secondary'}">${i.status}</span></td>
-    <td>
-      <a href="/invoices/${i.id}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
-      <a href="/api/invoices/${i.id}/pdf" class="btn btn-sm btn-outline-success"><i class="bi bi-file-pdf"></i></a>
+    <td><span class="badge bg-${i.status==='paid'?'success':i.status==='sent'?'info':i.status==='cancelled'?'danger':'secondary'}">${i.status}</span></td>
+    <td class="text-nowrap">
+      <a href="/invoices/${i.id}" class="btn btn-sm btn-outline-primary" title="View"><i class="bi bi-eye"></i></a>
+      <a href="/api/invoices/${i.id}/pdf" class="btn btn-sm btn-outline-success" title="PDF"><i class="bi bi-file-pdf"></i></a>
+      <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="deleteInvoice('${i.id}','${i.invoice_number}')"><i class="bi bi-trash"></i></button>
     </td>
   </tr>`).join('');
+}
+function deleteInvoice(id, num){
+  if(!confirm('Are you sure you want to delete invoice '+num+'?')) return;
+  fetch('/api/invoices/'+id,{method:'DELETE',credentials:'same-origin'})
+    .then(r=>{if(r.ok){load();}else{r.json().then(d=>alert(d.error||'Error deleting'));}})
+    .catch(e=>alert('Error: '+e.message));
 }
 document.getElementById('searchBox').addEventListener('input',e=>{
   const q=e.target.value.toLowerCase();

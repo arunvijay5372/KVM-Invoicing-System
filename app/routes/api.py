@@ -371,6 +371,15 @@ def update_invoice(invoice_id):
     return jsonify(invoice.to_dict())
 
 
+@api_bp.route('/invoices/<invoice_id>', methods=['DELETE'])
+@login_required
+def delete_invoice(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    db.session.delete(invoice)
+    db.session.commit()
+    return jsonify({'message': 'Invoice deleted'})
+
+
 # ─────────────────────────── Dashboard ───────────────────────────────────────
 
 @api_bp.route('/dashboard', methods=['GET'])
@@ -379,9 +388,11 @@ def dashboard():
     total_products = Product.query.filter_by(is_active=True).count()
     active_brands = Brand.query.filter_by(is_active=True).count()
 
-    # inventory value
+    # inventory value & total units
     inv_items = db.session.query(Inventory, Product).join(Product).all()
     total_value = sum(i.quantity * p.price for i, p in inv_items)
+    total_units = sum(i.quantity for i, p in inv_items)
+    in_stock = sum(1 for i, p in inv_items if i.quantity > i.reorder_level)
 
     low_stock = Inventory.query.filter(Inventory.quantity <= Inventory.reorder_level).count()
 
@@ -390,14 +401,36 @@ def dashboard():
         db.func.date(Invoice.invoice_date) == today
     ).count()
 
+    total_invoices = Invoice.query.count()
+    total_revenue = db.session.query(db.func.coalesce(db.func.sum(Invoice.grand_total), 0)).scalar()
+
+    # brand-wise stock summary
+    brands = Brand.query.filter_by(is_active=True).all()
+    brand_summary = []
+    for b in brands:
+        prods = Product.query.filter_by(brand_id=b.id, is_active=True).all()
+        b_qty = 0
+        b_low = 0
+        for p in prods:
+            if p.inventory:
+                b_qty += p.inventory.quantity
+                if p.inventory.quantity <= p.inventory.reorder_level:
+                    b_low += 1
+        brand_summary.append({'name': b.name, 'code': b.code, 'total_qty': b_qty, 'low_stock': b_low, 'products': len(prods)})
+
     recent = Invoice.query.order_by(Invoice.created_at.desc()).limit(5).all()
 
     return jsonify({
         'total_products': total_products,
         'active_brands': active_brands,
         'total_inventory_value': round(total_value, 2),
+        'total_units': total_units,
+        'in_stock_count': in_stock,
         'low_stock_count': low_stock,
         'today_invoices': today_invoices,
+        'total_invoices': total_invoices,
+        'total_revenue': round(float(total_revenue), 2),
+        'brand_summary': brand_summary,
         'recent_invoices': [r.to_dict() for r in recent],
     })
 

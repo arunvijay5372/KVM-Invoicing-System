@@ -2,23 +2,64 @@
 {% block title %}Inventory - KVM Enterprises{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<style>
+  .filter-bar{background:#f8f9fc;border-radius:12px;padding:16px;margin-bottom:20px}
+  .filter-bar select{border-radius:8px}
+  .brand-tab{cursor:pointer;border-radius:10px;padding:10px 18px;font-weight:600;border:2px solid transparent;transition:.2s}
+  .brand-tab:hover{background:rgba(78,115,223,.08)}
+  .brand-tab.active{background:#4e73df;color:#fff;border-color:#4e73df}
+  .inv-card{border-radius:12px;border:none;box-shadow:0 2px 8px rgba(0,0,0,.06);overflow:hidden}
+  .size-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-weight:600;min-width:50px;text-align:center}
+  .qty-display{font-size:1.3rem;font-weight:700}
+  .summary-strip{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border-radius:12px;padding:14px 20px;margin-bottom:20px}
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
   <h3><i class="bi bi-box"></i> Inventory</h3>
   <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#uploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
 </div>
 
-<div class="card p-3">
-  <div class="mb-3">
-    <input type="text" class="form-control" id="searchBox" placeholder="Search products…">
+<!-- Summary strip -->
+<div class="summary-strip d-flex flex-wrap gap-4 align-items-center" id="summaryStrip">
+  <span><i class="bi bi-box-seam-fill me-1"></i> Total Products: <strong id="sumProducts">-</strong></span>
+  <span><i class="bi bi-stack me-1"></i> Total Units: <strong id="sumUnits">-</strong></span>
+  <span><i class="bi bi-check-circle-fill me-1"></i> In Stock: <strong id="sumOk">-</strong></span>
+  <span><i class="bi bi-exclamation-triangle-fill me-1"></i> Low Stock: <strong id="sumLow">-</strong></span>
+</div>
+
+<!-- Brand tabs -->
+<div class="d-flex flex-wrap gap-2 mb-3" id="brandTabs">
+  <div class="brand-tab active" data-brand="all"><i class="bi bi-grid-3x3-gap-fill me-1"></i>All Brands</div>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label fw-bold small text-muted mb-1">Variant (Weight)</label>
+      <select class="form-select" id="filterVariant">
+        <option value="">All Variants</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label fw-bold small text-muted mb-1">Size (Inches)</label>
+      <select class="form-select" id="filterSize">
+        <option value="">All Sizes</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-bold small text-muted mb-1">Search</label>
+      <input type="text" class="form-control" id="searchBox" placeholder="Search products…">
+    </div>
+    <div class="col-md-2">
+      <button class="btn btn-outline-danger w-100" onclick="clearFilters()"><i class="bi bi-x-circle"></i> Clear</button>
+    </div>
   </div>
-  <div class="table-responsive">
-    <table class="table table-sm table-hover">
-      <thead>
-        <tr><th>Product</th><th>Brand</th><th>Variant</th><th>Size</th><th>Qty</th><th>Reorder</th><th>Status</th><th>Action</th></tr>
-      </thead>
-      <tbody id="invBody"><tr><td colspan="8" class="text-center text-muted">Loading…</td></tr></tbody>
-    </table>
-  </div>
+</div>
+
+<!-- Inventory grid / table -->
+<div id="invContainer">
+  <div class="text-center text-muted py-4">Loading inventory…</div>
 </div>
 
 <!-- Upload modal -->
@@ -47,31 +88,129 @@
 {% block extra_js %}
 <script>
 let allItems=[];
+let activeBrand='all';
+
 function load(){
   fetch('/api/inventory').then(r=>r.json()).then(data=>{
     allItems=data;
-    render(data);
+    buildFilters(data);
+    applyFilters();
   });
 }
-function render(items){
-  const tb=document.getElementById('invBody');
-  if(!items.length){tb.innerHTML='<tr><td colspan="8" class="text-center text-muted">No inventory</td></tr>';return;}
-  tb.innerHTML=items.map(i=>{
+
+function buildFilters(items){
+  /* brand tabs */
+  const brands=new Map();
+  const variants=new Set();
+  const sizes=new Set();
+  items.forEach(i=>{
     const p=i.product||{};
-    const low=i.quantity<=i.reorder_level;
-    const safeName=(p.name||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
-    return `<tr>
-      <td>${p.name||''}</td>
-      <td>${p.brand?p.brand.name:''}</td>
-      <td>${p.variant?p.variant.name:''}</td>
-      <td>${p.size?p.size.size_inches+'&quot;':''}</td>
-      <td>${i.quantity}</td>
-      <td>${i.reorder_level}</td>
-      <td>${low?'<span class="badge bg-danger">Low</span>':'<span class="badge bg-success">OK</span>'}</td>
-      <td><button class="btn btn-sm btn-outline-primary" data-pid="${i.product_id}" data-pname="${safeName}" data-qty="${i.quantity}" data-reorder="${i.reorder_level}" onclick="editItem(this)"><i class="bi bi-pencil"></i></button></td>
-    </tr>`;
-  }).join('');
+    if(p.brand){brands.set(p.brand.name,p.brand);}
+    if(p.variant){variants.add(p.variant.name);}
+    if(p.size){sizes.add(p.size.size_inches);}
+  });
+  const tabsEl=document.getElementById('brandTabs');
+  tabsEl.innerHTML='<div class="brand-tab active" data-brand="all" onclick="selectBrand(this)"><i class="bi bi-grid-3x3-gap-fill me-1"></i>All</div>';
+  brands.forEach((b,name)=>{
+    tabsEl.innerHTML+=`<div class="brand-tab" data-brand="${name}" onclick="selectBrand(this)"><i class="bi bi-tags-fill me-1"></i>${name}</div>`;
+  });
+
+  /* variant dropdown */
+  const vSel=document.getElementById('filterVariant');
+  vSel.innerHTML='<option value="">All Variants</option>';
+  [...variants].sort().forEach(v=>vSel.innerHTML+=`<option value="${v}">${v}</option>`);
+
+  /* size dropdown */
+  const sSel=document.getElementById('filterSize');
+  sSel.innerHTML='<option value="">All Sizes</option>';
+  [...sizes].sort((a,b)=>a-b).forEach(s=>sSel.innerHTML+=`<option value="${s}">${s}"</option>`);
 }
+
+function selectBrand(el){
+  document.querySelectorAll('.brand-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  activeBrand=el.dataset.brand;
+  applyFilters();
+}
+
+function clearFilters(){
+  document.getElementById('filterVariant').value='';
+  document.getElementById('filterSize').value='';
+  document.getElementById('searchBox').value='';
+  activeBrand='all';
+  document.querySelectorAll('.brand-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('[data-brand="all"]').classList.add('active');
+  applyFilters();
+}
+
+function applyFilters(){
+  const variant=document.getElementById('filterVariant').value;
+  const size=document.getElementById('filterSize').value;
+  const query=document.getElementById('searchBox').value.toLowerCase();
+  let filtered=allItems.filter(i=>{
+    const p=i.product||{};
+    if(activeBrand!=='all' && (!p.brand||p.brand.name!==activeBrand)) return false;
+    if(variant && (!p.variant||p.variant.name!==variant)) return false;
+    if(size && (!p.size||String(p.size.size_inches)!==size)) return false;
+    if(query && !(p.name||'').toLowerCase().includes(query)) return false;
+    return true;
+  });
+  renderCards(filtered);
+  updateSummary(filtered);
+}
+
+function updateSummary(items){
+  document.getElementById('sumProducts').textContent=items.length;
+  document.getElementById('sumUnits').textContent=items.reduce((s,i)=>s+i.quantity,0).toLocaleString('en-IN');
+  const ok=items.filter(i=>i.quantity>i.reorder_level).length;
+  document.getElementById('sumOk').textContent=ok;
+  document.getElementById('sumLow').textContent=items.length-ok;
+}
+
+function renderCards(items){
+  const c=document.getElementById('invContainer');
+  if(!items.length){c.innerHTML='<div class="text-center text-muted py-4">No matching products</div>';return;}
+
+  /* Group by brand */
+  const groups={};
+  items.forEach(i=>{
+    const bname=(i.product&&i.product.brand)?i.product.brand.name:'Unknown';
+    if(!groups[bname]) groups[bname]=[];
+    groups[bname].push(i);
+  });
+
+  let html='';
+  Object.keys(groups).sort().forEach(brand=>{
+    html+=`<h5 class="mt-3 mb-2"><i class="bi bi-tags-fill text-primary me-1"></i>${brand} <span class="badge bg-primary bg-opacity-10 text-primary">${groups[brand].length} products</span></h5>`;
+    html+=`<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-4" style="border-radius:10px;overflow:hidden">
+      <thead class="table-light"><tr><th>Product</th><th class="text-center">Variant</th><th class="text-center">Size</th><th class="text-center">Qty</th><th class="text-center">Reorder</th><th class="text-center">Status</th><th class="text-center">Action</th></tr></thead><tbody>`;
+    groups[brand].forEach(i=>{
+      const p=i.product||{};
+      const low=i.quantity<=i.reorder_level;
+      const safeName=(p.name||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
+      const sizeIn=p.size?p.size.size_inches:'';
+      html+=`<tr>
+        <td class="fw-semibold">${p.name||''}</td>
+        <td class="text-center"><span class="badge bg-info bg-opacity-10 text-info">${p.variant?p.variant.name:''}</span></td>
+        <td class="text-center"><span class="size-badge bg-secondary bg-opacity-10 text-dark">${sizeIn}&quot;</span></td>
+        <td class="text-center qty-display ${low?'text-danger':'text-success'}">${i.quantity}</td>
+        <td class="text-center text-muted">${i.reorder_level}</td>
+        <td class="text-center">${low?'<span class="badge bg-danger">Low</span>':'<span class="badge bg-success">OK</span>'}</td>
+        <td class="text-center">
+          <button class="btn btn-sm btn-outline-primary" data-pid="${i.product_id}" data-pname="${safeName}" data-qty="${i.quantity}" data-reorder="${i.reorder_level}" onclick="editItem(this)"><i class="bi bi-pencil"></i></button>
+        </td>
+      </tr>`;
+    });
+    html+=`</tbody></table></div>`;
+  });
+  c.innerHTML=html;
+}
+
+/* Event listeners for filters */
+document.getElementById('filterVariant').addEventListener('change',applyFilters);
+document.getElementById('filterSize').addEventListener('change',applyFilters);
+document.getElementById('searchBox').addEventListener('input',applyFilters);
+
 function editItem(btn){
   document.getElementById('editProductId').value=btn.dataset.pid;
   document.getElementById('editProductName').value=btn.dataset.pname;
@@ -107,10 +246,6 @@ function uploadCSV(){
   fetch('/api/inventory/upload',{method:'POST',body:fd})
     .then(r=>r.json()).then(d=>{alert(d.message||d.error);bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();load();});
 }
-document.getElementById('searchBox').addEventListener('input',e=>{
-  const q=e.target.value.toLowerCase();
-  render(allItems.filter(i=>(i.product&&i.product.name||'').toLowerCase().includes(q)));
-});
 load();
 </script>
 {% endblock %}
