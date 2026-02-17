@@ -6,7 +6,7 @@ databases:
 
 services:
   - type: web
-    name: kvm-invoicing
+    name: KVM-Enterprises
     env: python
     region: singapore
     plan: free
