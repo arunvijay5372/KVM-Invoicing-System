@@ -19,26 +19,26 @@
 <div class="row g-3 mb-4" id="statCards">
   <div class="col-6 col-lg-3">
     <div class="card stat-card p-3 d-flex flex-row align-items-center gap-3">
-      <div class="stat-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-box-seam-fill"></i></div>
-      <div><div class="fs-4 fw-bold" id="totalProducts">-</div><small class="text-muted">Total Products</small></div>
+      <div class="stat-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-stack"></i></div>
+      <div><div class="fs-4 fw-bold" id="totalUnits">0</div><small class="text-muted">Total Units in Stock</small></div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card stat-card p-3 d-flex flex-row align-items-center gap-3">
+      <div class="stat-icon bg-success bg-opacity-10 text-success"><i class="bi bi-box-seam-fill"></i></div>
+      <div><div class="fs-4 fw-bold" id="stockedProducts">0</div><small class="text-muted">Products with Stock</small></div>
     </div>
   </div>
   <div class="col-6 col-lg-3">
     <div class="card stat-card p-3 d-flex flex-row align-items-center gap-3">
       <div class="stat-icon bg-success bg-opacity-10 text-success"><i class="bi bi-check-circle-fill"></i></div>
-      <div><div class="fs-4 fw-bold" id="inStockCount">-</div><small class="text-muted">In Stock</small></div>
+      <div><div class="fs-4 fw-bold" id="inStockCount">0</div><small class="text-muted">Healthy Stock</small></div>
     </div>
   </div>
   <div class="col-6 col-lg-3">
     <div class="card stat-card p-3 d-flex flex-row align-items-center gap-3">
       <div class="stat-icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-exclamation-triangle-fill"></i></div>
-      <div><div class="fs-4 fw-bold" id="lowStock">-</div><small class="text-muted">Low Stock</small></div>
-    </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="card stat-card p-3 d-flex flex-row align-items-center gap-3">
-      <div class="stat-icon bg-info bg-opacity-10 text-info"><i class="bi bi-stack"></i></div>
-      <div><div class="fs-4 fw-bold" id="totalUnits">-</div><small class="text-muted">Total Units</small></div>
+      <div><div class="fs-4 fw-bold" id="lowStock">0</div><small class="text-muted">Low Stock</small></div>
     </div>
   </div>
 </div>
@@ -105,11 +105,11 @@ const BRAND_COLORS=['#4e73df','#1cc88a','#36b9cc','#f6c23e','#e74a3b','#858796',
 fetch('/api/dashboard')
   .then(r=>r.json())
   .then(d=>{
-    /* top stats */
-    document.getElementById('totalProducts').textContent=d.total_products;
+    /* top stats — purely stock-driven */
+    document.getElementById('totalUnits').textContent=d.total_units.toLocaleString('en-IN');
+    document.getElementById('stockedProducts').textContent=d.stocked_products;
     document.getElementById('inStockCount').textContent=d.in_stock_count;
     document.getElementById('lowStock').textContent=d.low_stock_count;
-    document.getElementById('totalUnits').textContent=d.total_units.toLocaleString('en-IN');
 
     /* revenue row */
     document.getElementById('totalRevenue').textContent='₹ '+d.total_revenue.toLocaleString('en-IN');
@@ -125,21 +125,23 @@ fetch('/api/dashboard')
       const maxQty=Math.max(...d.brand_summary.map(b=>b.total_qty),1);
       bc.innerHTML=d.brand_summary.map((b,i)=>{
         const color=BRAND_COLORS[i%BRAND_COLORS.length];
-        const pct=Math.round((b.total_qty/maxQty)*100);
-        const okCount=b.products-b.low_stock;
+        const pct=b.total_qty>0?Math.round((b.total_qty/maxQty)*100):0;
+        const okCount=b.stocked-b.low_stock;
+        const noStock=b.total_qty===0;
         return `<div class="col-md-6 col-lg-3">
           <div class="card brand-card h-100">
             <div class="brand-header" style="background:${color}">
               <span><i class="bi bi-tags-fill me-1"></i>${b.name}</span>
-              <span class="badge bg-light text-dark">${b.products} items</span>
+              <span class="badge bg-light text-dark">${b.total_qty} units</span>
             </div>
             <div class="brand-body">
-              <div class="d-flex justify-content-between mb-1"><small class="text-muted">Stock Qty</small><strong>${b.total_qty.toLocaleString('en-IN')}</strong></div>
+              ${noStock?'<div class="text-center text-muted py-2"><i class="bi bi-inbox"></i> No stock added yet</div>':`
+              <div class="d-flex justify-content-between mb-1"><small class="text-muted">Total Qty</small><strong>${b.total_qty.toLocaleString('en-IN')}</strong></div>
               <div class="progress mb-3"><div class="progress-bar stock-bar" style="width:${pct}%;background:${color}" role="progressbar"></div></div>
               <div class="d-flex justify-content-between">
                 <span class="badge bg-success bg-opacity-10 text-success"><i class="bi bi-check-circle"></i> ${okCount} OK</span>
-                <span class="badge bg-danger bg-opacity-10 text-danger"><i class="bi bi-exclamation-circle"></i> ${b.low_stock} Low</span>
-              </div>
+                ${b.low_stock>0?`<span class="badge bg-danger bg-opacity-10 text-danger"><i class="bi bi-exclamation-circle"></i> ${b.low_stock} Low</span>`:''}
+              </div>`}
             </div>
           </div>
         </div>`;

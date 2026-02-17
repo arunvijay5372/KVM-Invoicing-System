@@ -385,16 +385,15 @@ def delete_invoice(invoice_id):
 @api_bp.route('/dashboard', methods=['GET'])
 @login_required
 def dashboard():
-    total_products = Product.query.filter_by(is_active=True).count()
     active_brands = Brand.query.filter_by(is_active=True).count()
 
-    # inventory value & total units
+    # inventory value & total units — only count items with qty > 0
     inv_items = db.session.query(Inventory, Product).join(Product).all()
     total_value = sum(i.quantity * p.price for i, p in inv_items)
     total_units = sum(i.quantity for i, p in inv_items)
+    stocked_products = sum(1 for i, p in inv_items if i.quantity > 0)
     in_stock = sum(1 for i, p in inv_items if i.quantity > i.reorder_level)
-
-    low_stock = Inventory.query.filter(Inventory.quantity <= Inventory.reorder_level).count()
+    low_stock = sum(1 for i, p in inv_items if i.quantity > 0 and i.quantity <= i.reorder_level)
 
     today = datetime.utcnow().date()
     today_invoices = Invoice.query.filter(
@@ -404,24 +403,26 @@ def dashboard():
     total_invoices = Invoice.query.count()
     total_revenue = db.session.query(db.func.coalesce(db.func.sum(Invoice.grand_total), 0)).scalar()
 
-    # brand-wise stock summary
+    # brand-wise stock summary — only show qty-based numbers
     brands = Brand.query.filter_by(is_active=True).all()
     brand_summary = []
     for b in brands:
         prods = Product.query.filter_by(brand_id=b.id, is_active=True).all()
         b_qty = 0
+        b_stocked = 0
         b_low = 0
         for p in prods:
-            if p.inventory:
+            if p.inventory and p.inventory.quantity > 0:
                 b_qty += p.inventory.quantity
+                b_stocked += 1
                 if p.inventory.quantity <= p.inventory.reorder_level:
                     b_low += 1
-        brand_summary.append({'name': b.name, 'code': b.code, 'total_qty': b_qty, 'low_stock': b_low, 'products': len(prods)})
+        brand_summary.append({'name': b.name, 'code': b.code, 'total_qty': b_qty, 'stocked': b_stocked, 'low_stock': b_low})
 
     recent = Invoice.query.order_by(Invoice.created_at.desc()).limit(5).all()
 
     return jsonify({
-        'total_products': total_products,
+        'stocked_products': stocked_products,
         'active_brands': active_brands,
         'total_inventory_value': round(total_value, 2),
         'total_units': total_units,
