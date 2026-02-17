@@ -81,9 +81,24 @@ function editItem(btn){
 }
 function saveInventory(){
   const pid=document.getElementById('editProductId').value;
-  fetch('/api/inventory/'+pid,{method:'PUT',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({quantity:parseInt(document.getElementById('editQty').value),reorder_level:parseInt(document.getElementById('editReorder').value)})
-  }).then(r=>{if(r.ok){bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();load();}else{alert('Error saving');}});
+  const qty=parseInt(document.getElementById('editQty').value)||0;
+  const reorder=parseInt(document.getElementById('editReorder').value)||0;
+  fetch('/api/inventory/'+pid,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    credentials:'same-origin',
+    body:JSON.stringify({quantity:qty, reorder_level:reorder})
+  })
+  .then(r=>{
+    if(r.ok) return r.json();
+    return r.json().then(d=>{throw new Error(d.error||'Server error '+r.status);})
+      .catch(()=>{throw new Error('Server error '+r.status);});
+  })
+  .then(()=>{
+    bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+    load();
+  })
+  .catch(e=>alert('Error saving: '+e.message));
 }
 function uploadCSV(){
   const f=document.getElementById('csvFile').files[0];

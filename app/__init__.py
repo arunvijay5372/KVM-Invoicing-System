@@ -30,6 +30,13 @@ def create_app(config_name=None):
         from app.models import User
         return User.query.get(user_id)
 
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        from flask import request as req, jsonify, redirect, url_for
+        if req.path.startswith('/api/'):
+            return jsonify({'error': 'Authentication required'}), 401
+        return redirect(url_for('auth.login', next=req.url))
+
     # ---------- Register blueprints ----------
     from app.routes.web import web_bp
     from app.routes.api import api_bp

@@ -159,18 +159,24 @@ def get_inventory_item(product_id):
 @api_bp.route('/inventory/<product_id>', methods=['PUT'])
 @login_required
 def update_inventory(product_id):
-    inv = Inventory.query.filter_by(product_id=product_id).first()
-    if not inv:
-        inv = Inventory(product_id=product_id, quantity=0)
-        db.session.add(inv)
+    try:
+        inv = Inventory.query.filter_by(product_id=product_id).first()
+        if not inv:
+            inv = Inventory(product_id=product_id, quantity=0)
+            db.session.add(inv)
 
-    data = request.get_json()
-    if 'quantity' in data:
-        inv.quantity = int(data['quantity'])
-    if 'reorder_level' in data:
-        inv.reorder_level = int(data['reorder_level'])
-    db.session.commit()
-    return jsonify(inv.to_dict())
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data received'}), 400
+        if 'quantity' in data:
+            inv.quantity = int(data['quantity'])
+        if 'reorder_level' in data:
+            inv.reorder_level = int(data['reorder_level'])
+        db.session.commit()
+        return jsonify(inv.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 @api_bp.route('/inventory/upload', methods=['POST'])
